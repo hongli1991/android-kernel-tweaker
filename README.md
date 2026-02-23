@@ -10,7 +10,7 @@
 - GPU
   - 限制在约 **900~1000 MHz**
 - DDR/DDRQOS/LLCC
-  - DDR: max=209200, min=547000, boost=547000
+  - DDR: max=2092000, min=547000, boost=547000
   - DDRQOS: max/min/boost=1
   - LLCC: max=350000, min=350000, boost=350000
 - CPUSET
