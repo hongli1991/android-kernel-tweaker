@@ -1,29 +1,31 @@
 #!/system/bin/sh
 
-resolve_moddir() {
-  d="${0%/*}"
-  [ -n "$d" ] && [ -d "$d" ] && { echo "$d"; return 0; }
+MODDIR="${0%/*}"
+[ -n "$MODDIR" ] || MODDIR="."
 
-  for c in \
-    /data/adb/modules/sd8e_tweaker \
-    /data/adb/modules_update/sd8e_tweaker \
-    /data/adb/ksu/modules/sd8e_tweaker; do
-    [ -d "$c" ] && { echo "$c"; return 0; }
-  done
+if [ ! -d "$MODDIR" ]; then
+  if [ -d /data/adb/modules/sd8e_tweaker ]; then
+    MODDIR=/data/adb/modules/sd8e_tweaker
+  elif [ -d /data/adb/modules_update/sd8e_tweaker ]; then
+    MODDIR=/data/adb/modules_update/sd8e_tweaker
+  elif [ -d /data/adb/ksu/modules/sd8e_tweaker ]; then
+    MODDIR=/data/adb/ksu/modules/sd8e_tweaker
+  else
+    MODDIR=.
+  fi
+fi
 
-  echo "."
-}
-
-MODDIR="$(resolve_moddir)"
-LOG_DIR="/data/adb/ksu_tweaker"
-LOG_FILE="$LOG_DIR/tune.log"
-
+LOG_DIR=/data/adb/ksu_tweaker
+LOG_FILE=$LOG_DIR/tune.log
 mkdir -p "$LOG_DIR" 2>/dev/null
 
-# wait boot completed (no seq dependency)
+# wait boot completed (max 180s)
 i=0
-while [ "$i" -lt 180 ]; do
-  [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ] && break
+while [ "$i" -lt 180 ]
+do
+  if [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; then
+    break
+  fi
   sleep 1
   i=$((i + 1))
 done

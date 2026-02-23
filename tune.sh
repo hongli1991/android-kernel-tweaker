@@ -1,20 +1,19 @@
 #!/system/bin/sh
 
-resolve_moddir() {
-  d="${0%/*}"
-  [ -n "$d" ] && [ -d "$d" ] && { echo "$d"; return 0; }
+MODDIR="${0%/*}"
+[ -n "$MODDIR" ] || MODDIR="."
+if [ ! -d "$MODDIR" ]; then
+  if [ -d /data/adb/modules/sd8e_tweaker ]; then
+    MODDIR=/data/adb/modules/sd8e_tweaker
+  elif [ -d /data/adb/modules_update/sd8e_tweaker ]; then
+    MODDIR=/data/adb/modules_update/sd8e_tweaker
+  elif [ -d /data/adb/ksu/modules/sd8e_tweaker ]; then
+    MODDIR=/data/adb/ksu/modules/sd8e_tweaker
+  else
+    MODDIR=.
+  fi
+fi
 
-  for c in \
-    /data/adb/modules/sd8e_tweaker \
-    /data/adb/modules_update/sd8e_tweaker \
-    /data/adb/ksu/modules/sd8e_tweaker; do
-    [ -d "$c" ] && { echo "$c"; return 0; }
-  done
-
-  echo "."
-}
-
-MODDIR="$(resolve_moddir)"
 LOG_DIR="/data/adb/ksu_tweaker"
 LOG_FILE="$LOG_DIR/tune.log"
 mkdir -p "$LOG_DIR" 2>/dev/null
