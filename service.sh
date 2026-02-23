@@ -1,32 +1,35 @@
 #!/system/bin/sh
 
-MODDIR="${0%/*}"
-. "$MODDIR/common/util.sh"
+resolve_moddir() {
+  d="${0%/*}"
+  [ -n "$d" ] && [ -d "$d" ] && { echo "$d"; return 0; }
 
-aktune_prepare_dirs
-rotate_logs_if_needed
+  for c in \
+    /data/adb/modules/sd8e_tweaker \
+    /data/adb/modules_update/sd8e_tweaker \
+    /data/adb/ksu/modules/sd8e_tweaker; do
+    [ -d "$c" ] && { echo "$c"; return 0; }
+  done
 
-log_i "service: waiting for boot completion"
-wait_boot_completed 180
-akt_sleep 5
+  echo "."
+}
 
-PIDFILE="$STATE_DIR/daemon.pid"
-if [ -f "$PIDFILE" ]; then
-  pid="$(read_first_line "$PIDFILE" 2>/dev/null)"
-  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-    log_i "service: daemon already running pid=$pid"
-    exit 0
-  fi
-fi
+MODDIR="$(resolve_moddir)"
+LOG_DIR="/data/adb/ksu_tweaker"
+LOG_FILE="$LOG_DIR/tune.log"
 
-log_i "service: starting adaptive daemon"
+mkdir -p "$LOG_DIR" 2>/dev/null
 
-if command -v nohup >/dev/null 2>&1; then
-  nohup sh "$MODDIR/tweaks/daemon.sh" >> "$LOG_FILE" 2>&1 &
+# wait boot completed (no seq dependency)
+i=0
+while [ "$i" -lt 180 ]; do
+  [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ] && break
+  sleep 1
+  i=$((i + 1))
+done
+
+if [ -f "$MODDIR/tune.sh" ]; then
+  sh "$MODDIR/tune.sh" >>"$LOG_FILE" 2>&1
 else
-  sh "$MODDIR/tweaks/daemon.sh" >> "$LOG_FILE" 2>&1 &
+  echo "$(date '+%F %T' 2>/dev/null) [E] tune.sh not found under $MODDIR" >>"$LOG_FILE"
 fi
-
-printf "%s\n" "$!" > "$PIDFILE" 2>/dev/null
-log_i "service: daemon pid=$!"
-exit 0
