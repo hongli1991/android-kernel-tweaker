@@ -1,32 +1,14 @@
 #!/system/bin/sh
-
 MODDIR="${0%/*}"
-. "$MODDIR/common/util.sh"
+LOG_DIR="/data/adb/ksu_tweaker"
+LOG_FILE="$LOG_DIR/tune.log"
 
-aktune_prepare_dirs
-rotate_logs_if_needed
+mkdir -p "$LOG_DIR" 2>/dev/null
 
-log_i "service: waiting for boot completion"
-wait_boot_completed 180
-akt_sleep 5
+# wait boot completed
+for _i in $(seq 1 180); do
+  [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ] && break
+  sleep 1
+done
 
-PIDFILE="$STATE_DIR/daemon.pid"
-if [ -f "$PIDFILE" ]; then
-  pid="$(read_first_line "$PIDFILE" 2>/dev/null)"
-  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-    log_i "service: daemon already running pid=$pid"
-    exit 0
-  fi
-fi
-
-log_i "service: starting adaptive daemon"
-
-if command -v nohup >/dev/null 2>&1; then
-  nohup sh "$MODDIR/tweaks/daemon.sh" >> "$LOG_FILE" 2>&1 &
-else
-  sh "$MODDIR/tweaks/daemon.sh" >> "$LOG_FILE" 2>&1 &
-fi
-
-printf "%s\n" "$!" > "$PIDFILE" 2>/dev/null
-log_i "service: daemon pid=$!"
-exit 0
+sh "$MODDIR/tune.sh" >>"$LOG_FILE" 2>&1
