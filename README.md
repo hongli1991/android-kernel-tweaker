@@ -10,9 +10,14 @@
 - GPU
   - 限制在约 **900~1000 MHz**
 - DDR/DDRQOS/LLCC
-  - DDR: max=4761000, min=547000, boost=2092000
+  - DDR: max=209200, min=547000, boost=547000
   - DDRQOS: max/min/boost=1
-  - LLCC: max=1211000, min=350000, boost=806000
+  - LLCC: max=350000, min=350000, boost=350000
+- CPUSET
+  - background: 0-3
+  - system-background: 2-4
+  - top-app/foreground/foreground_window/display/sf: 0-5
+  - 其余分组按常见 Android 调度组做保守分配（偏省电并兼顾流畅）
 - WALT + schedutil
   - 启用并设置一组面向高通平台的平衡参数（流畅度与持续功耗折中）
 

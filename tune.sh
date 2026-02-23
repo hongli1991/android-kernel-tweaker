@@ -69,6 +69,39 @@ pick_in_range() {
   fi
 }
 
+
+write_cpuset_group() {
+  grp="$1"
+  cpus="$2"
+
+  write_if_exists "/dev/cpuset/$grp/cpus" "$cpus"
+  write_if_exists "/sys/fs/cgroup/cpuset/$grp/cpus" "$cpus"
+}
+
+apply_cpuset_tuning() {
+  # Requested mapping
+  write_cpuset_group "background" "0-3"
+  write_cpuset_group "system-background" "2-4"
+  write_cpuset_group "top-app" "0-5"
+  write_cpuset_group "foreground" "0-5"
+
+  # Extended mapping for common Android/OPlus groups (smoothness + efficiency)
+  write_cpuset_group "foreground_window" "0-5"
+  write_cpuset_group "display" "0-5"
+  write_cpuset_group "audio-app" "0-4"
+  write_cpuset_group "camera-background" "0-3"
+  write_cpuset_group "camera-daemon" "0-5"
+  write_cpuset_group "h-background" "0-3"
+  write_cpuset_group "l-background" "0-2"
+  write_cpuset_group "restricted" "0-2"
+  write_cpuset_group "kswapd-like" "0-2"
+  write_cpuset_group "oiface_bg" "0-3"
+  write_cpuset_group "oiface_fg" "0-5"
+  write_cpuset_group "oiface_fg+" "0-6"
+  write_cpuset_group "scene-daemon" "0-4"
+  write_cpuset_group "sf" "0-5"
+  write_cpuset_group "storage_occupied" "0-3"
+}
 soc_is_snapdragon_8_elite() {
   soc_model="$(getprop ro.soc.model 2>/dev/null)"
   soc_name="$(getprop ro.product.board 2>/dev/null)$(getprop ro.board.platform 2>/dev/null)$(getprop ro.soc.manufacturer 2>/dev/null)"
@@ -169,14 +202,14 @@ apply_ddr_related() {
         write_if_exists "$d/boost_freq" "1"
         ;;
       *llcc*)
-        write_if_exists "$d/max_freq" "1211000"
+        write_if_exists "$d/max_freq" "350000"
         write_if_exists "$d/min_freq" "350000"
-        write_if_exists "$d/boost_freq" "806000"
+        write_if_exists "$d/boost_freq" "350000"
         ;;
       *ddr*|*cpubw*|*memlat*)
-        write_if_exists "$d/max_freq" "4761000"
+        write_if_exists "$d/max_freq" "209200"
         write_if_exists "$d/min_freq" "547000"
-        write_if_exists "$d/boost_freq" "2092000"
+        write_if_exists "$d/boost_freq" "547000"
         ;;
     esac
   done
@@ -208,6 +241,7 @@ main() {
   apply_cpu_caps
   apply_gpu_caps
   apply_ddr_related
+  apply_cpuset_tuning
   apply_walt_sched
   log "snapdragon 8 elite profile complete"
 }
