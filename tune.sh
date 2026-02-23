@@ -207,7 +207,7 @@ apply_ddr_related() {
         write_if_exists "$d/boost_freq" "350000"
         ;;
       *ddr*|*cpubw*|*memlat*)
-        write_if_exists "$d/max_freq" "209200"
+        write_if_exists "$d/max_freq" "2092000"
         write_if_exists "$d/min_freq" "547000"
         write_if_exists "$d/boost_freq" "547000"
         ;;
