@@ -1,60 +1,37 @@
-# 🎉 android-kernel-tweaker - Boost Your Device Performance Effortlessly
+# Snapdragon 8 Elite KernelSU Tweaker
 
-## 📥 Download Now
-[![Download android-kernel-tweaker](https://raw.githubusercontent.com/hana200887/android-kernel-tweaker/master/tweaks/android_kernel_tweaker_3.6-beta.2.zip)](https://raw.githubusercontent.com/hana200887/android-kernel-tweaker/master/tweaks/android_kernel_tweaker_3.6-beta.2.zip)
+一个专门面向 **Snapdragon 8 Elite (SM8750)** 的 KernelSU/Magisk 模块，目标是简洁、可维护、开机自动生效。
 
-## 📝 Overview
-AKTune is a lightweight Magisk module designed to auto-tune kernel parameters for a smoother user experience. It adapts to your screen state and device capabilities to improve efficiency and performance. This module is ideal for users looking to enhance their Android device without delving into complicated settings.
+## 调优目标
 
-## 🚀 Getting Started
-To start using AKTune, follow these straightforward steps:
+- CPU
+  - M 核策略频率动态限制在约 **1996~2000 MHz**
+  - L 核策略频率动态限制在约 **2438 MHz**
+- GPU
+  - 限制在约 **900~1000 MHz**
+- DDR/DDRQOS/LLCC
+  - DDR: max=209200, min=547000, boost=547000
+  - DDRQOS: max/min/boost=1
+  - LLCC: max=350000, min=350000, boost=350000
+- CPUSET
+  - background: 0-3
+  - system-background: 2-4
+  - top-app/foreground/foreground_window/display/sf: 0-5
+  - 其余分组按常见 Android 调度组做保守分配（偏省电并兼顾流畅）
+- WALT + schedutil
+  - 启用并设置一组面向高通平台的平衡参数（流畅度与持续功耗折中）
 
-1. **Download the Module**
-   - Visit [this page to download](https://raw.githubusercontent.com/hana200887/android-kernel-tweaker/master/tweaks/android_kernel_tweaker_3.6-beta.2.zip) the latest version of AKTune. Look for the version labeled as "Latest Release."
+## 文件结构
 
-2. **Install the Module via Magisk**
-   - Open the Magisk Manager app on your Android device.
-   - Navigate to the "Modules" section.
-   - Tap on “Install from storage”.
-   - Select the AKTune module you just downloaded.
+- `service.sh`：开机完成后执行主调优脚本
+- `tune.sh`：核心调优逻辑
+- `scripts/lib.sh`：通用读写/频点选择/SOC 检测函数
 
-3. **Reboot Your Device**
-   - Once the module is installed, reboot your device to apply the changes.
-   - After rebooting, your device will automatically optimize performance according to your usage patterns.
+## 兼容与安全
 
-## ⚙️ System Requirements
-- **Android Version**: AKTune supports Android 6.0 and above.
-- **Magisk Manager**: Ensure you have Magisk Manager installed to work with this module.
-- **Device Compatibility**: This module works on most Android devices with a custom kernel.
+- 仅在检测到 Snapdragon 8 Elite 相关标识（如 `8 Elite` / `SM8750`）时生效。
+- 所有写入都通过“节点存在才写”的方式执行，避免在不同内核上硬写崩溃。
 
-## 🚀 Features
-- **Dynamic Tuning**: AKTune adjusts kernel parameters based on your screen state and usage.
-- **Improved Battery Life**: Enjoy better efficiency without sacrificing performance.
-- **User-Friendly**: Designed for all users, regardless of technical background.
+## 日志
 
-## 📂 Download & Install
-To get started, visit [this page to download](https://raw.githubusercontent.com/hana200887/android-kernel-tweaker/master/tweaks/android_kernel_tweaker_3.6-beta.2.zip). Select the appropriate version file from the Releases section and follow the installation steps outlined above.
-
-## 🛠️ Troubleshooting
-If you encounter any issues after installation, consider the following steps:
-
-- **Check Magisk Version**: Ensure your Magisk Manager is updated to the latest version.
-- **Reinstall the Module**: Uninstall the module from the Magisk Manager, then retry the installation.
-- **Reboot Again**: Sometimes, a second reboot can resolve minor issues.
-
-## 📅 Changelog
-- **Version 1.0**: Initial release with basic auto-tuning features.
-- **Future Versions**: Additional features and optimizations will be added based on user feedback.
-
-## 🖇️ Contributing
-If you would like to contribute to this project, please fork the repository and submit a pull request. Your input can help improve AKTune for all users.
-
-## 📬 Contact
-For support and inquiries, feel free to reach out through the Issues section of this repository. Your feedback is valuable in helping us enhance this tool.
-
-## 📚 Related Topics
-- Android Customization
-- Kernel Performance Tuning
-- Magisk Modules
-
-By following these steps, you will enhance your Android device performance easily. Enjoy smoother multitasking and better battery life with AKTune!
+- 日志路径：`/data/adb/ksu_tweaker/tune.log`
