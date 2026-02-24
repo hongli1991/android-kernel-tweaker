@@ -224,9 +224,6 @@ apply_bus_dcvs_explicit_locks() {
   # DDR
   write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/boost_freq 547000
   write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/max_freq 2092000
-  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/min_freq 547000
-  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/hw_max_freq 2092000
-  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/hw_min_freq 547000
 
   # DDRQOS
   write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/boost_freq 1
@@ -250,6 +247,32 @@ apply_bus_dcvs_explicit_locks() {
   write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/max_freq 350000
 }
 
+
+sweep_ddr_max_freq_2092000() {
+  base="/sys/devices/system/cpu/bus_dcvs/DDR"
+  [ -d "$base" ] || return 0
+
+  # pass 1: breadth via glob recursion emulation
+  count=0
+  for path in "$base" "$base"/* "$base"/*/* "$base"/*/*/* "$base"/*/*/*/*; do
+    [ -e "$path" ] || continue
+    case "$path" in
+      */max_freq)
+        write_if_exists "$path" "2092000"
+        count=$((count + 1))
+        ;;
+    esac
+  done
+
+  # pass 2: if find exists, do a full recursive sweep for deeper trees
+  if command -v find >/dev/null 2>&1; then
+    for f in $(find "$base" -type f -name max_freq 2>/dev/null); do
+      write_if_exists "$f" "2092000"
+    done
+  fi
+
+  log "DDR sweep: attempted max_freq override to 2092000 under $base"
+}
 apply_ddr_related() {
   # 1) generic devfreq nodes
   for d in /sys/class/devfreq/*; do
@@ -263,13 +286,16 @@ apply_ddr_related() {
         lock_devfreq_node "$d" "350000" "350000" "350000"
         ;;
       *ddr*|*cpubw*|*memlat*)
-        lock_devfreq_node "$d" "547000" "547000" "547000"
+        lock_devfreq_node "$d" "547000" "2092000" "547000"
         ;;
     esac
   done
 
   # 2) Qualcomm bus_dcvs explicit nodes (higher priority on many ROMs)
   apply_bus_dcvs_explicit_locks
+
+  # 3) force all DDR max_freq nodes under bus_dcvs/DDR to 2092000
+  sweep_ddr_max_freq_2092000
 }
 
 apply_walt_sched() {
