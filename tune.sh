@@ -92,26 +92,39 @@ write_cpuset_group() {
 }
 
 apply_cpuset_tuning() {
+  # -------------------------- 低优先级（节能优先） --------------------------
+  # 普通后台进程（如应用缓存、日志上传）：仅用低负载小核
   write_cpuset_group "background" "0-3"
-  write_cpuset_group "system-background" "2-4"
-  write_cpuset_group "top-app" "0-5"
-  write_cpuset_group "foreground" "0-5"
-
-  write_cpuset_group "foreground_window" "0-5"
-  write_cpuset_group "display" "0-5"
-  write_cpuset_group "audio-app" "0-4"
-  write_cpuset_group "camera-background" "0-3"
-  write_cpuset_group "camera-daemon" "0-5"
-  write_cpuset_group "h-background" "0-3"
+  # 系统极低优先级后台（如内存交换、低功耗服务）：仅用最节能的小核
   write_cpuset_group "l-background" "0-2"
   write_cpuset_group "restricted" "0-2"
   write_cpuset_group "kswapd-like" "0-2"
-  write_cpuset_group "oiface_bg" "0-3"
-  write_cpuset_group "oiface_fg" "0-5"
-  write_cpuset_group "oiface_fg+" "0-6"
-  write_cpuset_group "scene-daemon" "0-4"
-  write_cpuset_group "sf" "0-5"
-  write_cpuset_group "storage_occupied" "0-3"
+  # 相机/存储后台任务：小核足够支撑，避免频繁唤醒大核
+  write_cpuset_group "camera-background" "0-4"
+  write_cpuset_group "storage_occupied" "0-4"
+
+  # -------------------------- 中优先级（小核为主，按需1个大核） --------------------------
+  write_cpuset_group "system-background" "0-5,6"
+  write_cpuset_group "audio-app" "0-5,6"
+  write_cpuset_group "scene-daemon" "0-5,6"
+  write_cpuset_group "oiface_bg" "0-5,6"
+  write_cpuset_group "h-background" "0-5,6"
+
+  # -------------------------- 高优先级（流畅优先） --------------------------
+  write_cpuset_group "top-app" "0-7"
+  write_cpuset_group "foreground" "0-7"
+  write_cpuset_group "foreground_window" "0-7"
+  write_cpuset_group "display" "0-7"
+  write_cpuset_group "camera-daemon" "0-7"
+  write_cpuset_group "sf" "0-7"
+  write_cpuset_group "oiface_fg" "0-7"
+  write_cpuset_group "oiface_fg+" "0-7"
+}
+
+
+apply_eas_tuning() {
+  write_if_exists /proc/eas_opt/eas_opt_enable 2
+  write_if_exists /proc/eas_opt/group_adjust_enable 1
 }
 
 soc_is_snapdragon_8_elite() {
@@ -169,12 +182,12 @@ apply_cpu_caps() {
       su="$p/schedutil"
       case "$i" in
         1)
-          write_if_exists "$su/up_rate_limit_us" "14000"
-          write_if_exists "$su/down_rate_limit_us" "42000"
+          write_if_exists "$su/up_rate_limit_us" "9000"
+          write_if_exists "$su/down_rate_limit_us" "36000"
           ;;
         *)
-          write_if_exists "$su/up_rate_limit_us" "5000"
-          write_if_exists "$su/down_rate_limit_us" "26000"
+          write_if_exists "$su/up_rate_limit_us" "3000"
+          write_if_exists "$su/down_rate_limit_us" "18000"
           ;;
       esac
       write_if_exists "$su/iowait_boost_enable" "1"
@@ -211,7 +224,7 @@ lock_devfreq_node() {
 
   # retry writes to resist vendor services that rewrite nodes post-boot
   i=0
-  while [ "$i" -lt 3 ]; do
+  while [ "$i" -lt 2 ]; do
     write_if_exists "$node/max_freq" "$maxv"
     write_if_exists "$node/min_freq" "$minv"
     write_if_exists "$node/max_freq" "$maxv"
@@ -299,27 +312,105 @@ apply_ddr_related() {
 }
 
 apply_walt_sched() {
-  # balanced battery + smoothness for Qualcomm WALT
+  # WALT tuning focused on smoothness-per-watt (avoid migration thrash)
   write_if_exists /proc/sys/kernel/sched_util_clamp_min "0"
   write_if_exists /proc/sys/kernel/sched_util_clamp_max "1024"
 
-  # migration thresholds: slightly conservative upmigrate, gentler downmigrate
-  write_if_exists /proc/sys/kernel/sched_group_upmigrate "98"
-  write_if_exists /proc/sys/kernel/sched_group_downmigrate "90"
-  write_if_exists /proc/sys/kernel/sched_upmigrate "96 98"
-  write_if_exists /proc/sys/kernel/sched_downmigrate "72 86"
+  # migration threshold balance
+  write_if_exists /proc/sys/kernel/sched_group_upmigrate "95"
+  write_if_exists /proc/sys/kernel/sched_group_downmigrate "85"
+  write_if_exists /proc/sys/kernel/sched_upmigrate "93 96"
+  write_if_exists /proc/sys/kernel/sched_downmigrate "70 82"
 
-  # boost policy: lower floor + shorter behavior via thresholds
-  write_if_exists /proc/sys/kernel/sched_min_task_util_for_boost "12"
+  # boost trigger: smoothness without broad overboost
+  write_if_exists /proc/sys/kernel/sched_min_task_util_for_boost "10"
 
-  # hysteresis/noise filter: reduce ping-pong migrations
-  write_if_exists /proc/sys/kernel/sched_coloc_downmigrate_ns "6000000"
-  write_if_exists /proc/sys/kernel/sched_coloc_busy_hyst_cpu_ns "42000000"
-  write_if_exists /proc/sys/kernel/sched_busy_hyst_cpu_ns "7000000"
-  write_if_exists /proc/sys/kernel/sched_adaptive_noise_floor "96"
+  # anti-jitter / anti ping-pong
+  write_if_exists /proc/sys/kernel/sched_coloc_downmigrate_ns "5000000"
+  write_if_exists /proc/sys/kernel/sched_coloc_busy_hyst_cpu_ns "36000000"
+  write_if_exists /proc/sys/kernel/sched_busy_hyst_cpu_ns "6000000"
+  write_if_exists /proc/sys/kernel/sched_adaptive_noise_floor "128"
 
-  # big-core balancing
+  # distribute big tasks across big cores
   write_if_exists /proc/sys/kernel/sched_walt_rotate_big_tasks "1"
+}
+
+
+read_mem_total_kb() {
+  if [ -r /proc/meminfo ]; then
+    while IFS=' ' read -r k v _; do
+      case "$k" in
+        MemTotal:)
+          case "$v" in ''|*[!0-9]*) echo 0 ;; *) echo "$v" ;; esac
+          return 0
+          ;;
+      esac
+    done < /proc/meminfo
+  fi
+  echo 0
+}
+
+pick_zram_tools() {
+  SWAPON_BIN=""
+  SWAPOFF_BIN=""
+  MKSWAP_BIN=""
+
+  for b in /system/bin/swapon /vendor/bin/swapon /system/xbin/swapon; do
+    [ -x "$b" ] && SWAPON_BIN="$b" && break
+  done
+  for b in /system/bin/swapoff /vendor/bin/swapoff /system/xbin/swapoff; do
+    [ -x "$b" ] && SWAPOFF_BIN="$b" && break
+  done
+  for b in /system/bin/mkswap /vendor/bin/mkswap /system/xbin/mkswap; do
+    [ -x "$b" ] && MKSWAP_BIN="$b" && break
+  done
+
+  [ -n "$SWAPON_BIN" ] || SWAPON_BIN="swapon"
+  [ -n "$SWAPOFF_BIN" ] || SWAPOFF_BIN="swapoff"
+  [ -n "$MKSWAP_BIN" ] || MKSWAP_BIN="mkswap"
+}
+
+apply_zram_tuning() {
+  [ -e /sys/block/zram0 ] || { log "zram: zram0 not found, skip"; return 0; }
+
+  mem_kb="$(read_mem_total_kb)"
+  case "$mem_kb" in ''|*[!0-9]*) mem_kb=0 ;; esac
+
+  # tuned by physical memory size
+  if [ "$mem_kb" -le 12582912 ]; then
+    zram_size_mb=8192
+  elif [ "$mem_kb" -le 16777216 ]; then
+    zram_size_mb=11366
+  else
+    zram_size_mb=12288
+  fi
+
+  pick_zram_tools
+
+  # disable active swaps first
+  if [ -r /proc/swaps ]; then
+    while IFS=' ' read -r dev _; do
+      case "$dev" in
+        /dev/block/zram*) "$SWAPOFF_BIN" "$dev" >/dev/null 2>&1 ;;
+      esac
+    done < /proc/swaps
+  fi
+
+  # reset zram devices to avoid stale settings
+  for z in /sys/block/zram*; do
+    [ -d "$z" ] || continue
+    write_if_exists "$z/reset" 1
+  done
+
+  write_if_exists /sys/block/zram0/comp_algorithm lz4
+  write_if_exists /sys/block/zram0/disksize "${zram_size_mb}M"
+  write_if_exists /sys/kernel/mm/swap/vma_ra_enabled 1
+  write_if_exists /proc/sys/vm/page-cluster 1
+
+  "$MKSWAP_BIN" /dev/block/zram0 >/dev/null 2>&1
+  "$SWAPON_BIN" /dev/block/zram0 -p 32767 >/dev/null 2>&1
+
+  log "zram: size=${zram_size_mb}MB alg=lz4 priority=32767"
 }
 
 apply_render_memory_props() {
@@ -381,10 +472,12 @@ main() {
 
   log "snapdragon 8 elite profile start"
   apply_render_memory_props
+  apply_zram_tuning
   apply_cpu_caps
   apply_gpu_caps
   apply_ddr_related
   apply_cpuset_tuning
+  apply_eas_tuning
   apply_walt_sched
   log "snapdragon 8 elite profile complete"
 }

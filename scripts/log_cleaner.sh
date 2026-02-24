@@ -4,7 +4,8 @@ LOG_DIR=/data/adb/ksu_tweaker
 LOG_FILE=$LOG_DIR/tune.log
 PID_FILE=$LOG_DIR/log_cleaner.pid
 MAX_BYTES=1048576
-CHECK_INTERVAL=1800
+# 12h
+CHECK_INTERVAL=43200
 
 mkdir -p "$LOG_DIR" 2>/dev/null
 [ -f "$LOG_FILE" ] || : > "$LOG_FILE"
@@ -23,7 +24,7 @@ truncate_log_if_needed() {
 
   if [ "$size" -gt "$MAX_BYTES" ]; then
     if command -v tail >/dev/null 2>&1; then
-      tail -n 2000 "$LOG_FILE" > "$LOG_FILE.tmp" 2>/dev/null
+      tail -n 1200 "$LOG_FILE" > "$LOG_FILE.tmp" 2>/dev/null
       cat "$LOG_FILE.tmp" > "$LOG_FILE" 2>/dev/null
       rm -f "$LOG_FILE.tmp" 2>/dev/null
     else
@@ -33,8 +34,9 @@ truncate_log_if_needed() {
   fi
 }
 
-# long-running lightweight cleaner
+# run once at startup, then every 12h
+truncate_log_if_needed
 while :; do
-  truncate_log_if_needed
   sleep "$CHECK_INTERVAL"
+  truncate_log_if_needed
 done
