@@ -33,6 +33,15 @@ read_value() {
   printf '%s' "$_v"
 }
 
+set_prop_safe() {
+  k="$1"
+  v="$2"
+  if command -v resetprop >/dev/null 2>&1; then
+    resetprop "$k" "$v" >/dev/null 2>&1 && log "prop $k=$v (resetprop)" && return 0
+  fi
+  setprop "$k" "$v" >/dev/null 2>&1 && log "prop $k=$v (setprop)"
+}
+
 nearest_freq() {
   target="$1"
   list="$2"
@@ -69,23 +78,25 @@ pick_in_range() {
   fi
 }
 
+android_version_ok() {
+  sdk="$(getprop ro.build.version.sdk 2>/dev/null)"
+  case "$sdk" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$sdk" -ge 35 ]
+}
 
 write_cpuset_group() {
   grp="$1"
   cpus="$2"
-
   write_if_exists "/dev/cpuset/$grp/cpus" "$cpus"
   write_if_exists "/sys/fs/cgroup/cpuset/$grp/cpus" "$cpus"
 }
 
 apply_cpuset_tuning() {
-  # Requested mapping
   write_cpuset_group "background" "0-3"
   write_cpuset_group "system-background" "2-4"
   write_cpuset_group "top-app" "0-5"
   write_cpuset_group "foreground" "0-5"
 
-  # Extended mapping for common Android/OPlus groups (smoothness + efficiency)
   write_cpuset_group "foreground_window" "0-5"
   write_cpuset_group "display" "0-5"
   write_cpuset_group "audio-app" "0-4"
@@ -102,6 +113,7 @@ apply_cpuset_tuning() {
   write_cpuset_group "sf" "0-5"
   write_cpuset_group "storage_occupied" "0-3"
 }
+
 soc_is_snapdragon_8_elite() {
   soc_model="$(getprop ro.soc.model 2>/dev/null)"
   soc_name="$(getprop ro.product.board 2>/dev/null)$(getprop ro.board.platform 2>/dev/null)$(getprop ro.soc.manufacturer 2>/dev/null)"
@@ -191,25 +203,32 @@ apply_gpu_caps() {
   write_if_exists "/sys/class/kgsl/kgsl-3d0/devfreq/max_freq" "1000000000"
 }
 
+lock_devfreq_node() {
+  node="$1"
+  minv="$2"
+  maxv="$3"
+  boostv="$4"
+
+  # max first then min, then repeat max to avoid driver side rollback
+  write_if_exists "$node/max_freq" "$maxv"
+  write_if_exists "$node/min_freq" "$minv"
+  write_if_exists "$node/max_freq" "$maxv"
+  write_if_exists "$node/boost_freq" "$boostv"
+}
+
 apply_ddr_related() {
   for d in /sys/class/devfreq/*; do
     [ -d "$d" ] || continue
     n="$(basename "$d" | tr '[:upper:]' '[:lower:]')"
     case "$n" in
       *ddrqos*|*qos*)
-        write_if_exists "$d/min_freq" "1"
-        write_if_exists "$d/max_freq" "1"
-        write_if_exists "$d/boost_freq" "1"
+        lock_devfreq_node "$d" "1" "1" "1"
         ;;
       *llcc*)
-        write_if_exists "$d/max_freq" "350000"
-        write_if_exists "$d/min_freq" "350000"
-        write_if_exists "$d/boost_freq" "350000"
+        lock_devfreq_node "$d" "350000" "350000" "350000"
         ;;
       *ddr*|*cpubw*|*memlat*)
-        write_if_exists "$d/max_freq" "2092000"
-        write_if_exists "$d/min_freq" "547000"
-        write_if_exists "$d/boost_freq" "547000"
+        lock_devfreq_node "$d" "547000" "2092000" "547000"
         ;;
     esac
   done
@@ -230,14 +249,65 @@ apply_walt_sched() {
   write_if_exists /proc/sys/kernel/sched_adaptive_noise_floor "128"
 }
 
+apply_render_memory_props() {
+  # Vulkan / RenderEngine
+  set_prop_safe ro.hwui.use_vulkan true
+  set_prop_safe debug.hwui.renderer skiavk
+  set_prop_safe debug.renderengine.backend skiavkthreaded
+  set_prop_safe debug.renderengine.vulkan true
+  set_prop_safe debug.stagefright.renderengine.backend threaded
+
+  # Memory / LMK
+  set_prop_safe ro.sys.fw.bg_apps_limit 32768
+  set_prop_safe ro.vendor.qti.sys.fw.bservice_limit 32768
+  set_prop_safe persist.sys.mms.bg_apps_limit 32768
+  set_prop_safe ro.lmk.use_psi true
+  set_prop_safe ro.lmk.low 1001
+  set_prop_safe ro.lmk.medium 906
+  set_prop_safe ro.lmk.psi_partial_stall_ms 250
+  set_prop_safe ro.lmk.psi_complete_stall_ms 700
+  set_prop_safe ro.lmk.pressure_after_kill_min_score 800
+  set_prop_safe ro.lmk.thrashing_limit 100
+  set_prop_safe ro.lmk.thrashing_limit_decay 10
+  set_prop_safe ro.lmk.use_minfree_levels false
+  set_prop_safe ro.lmk.swap_free_low_percentage 1
+  set_prop_safe ro.lmk.swap_util_max 100
+  set_prop_safe ro.lmk.swap_is_low_kill_enable 0
+  set_prop_safe ro.lmk.critical 800
+  set_prop_safe ro.lmk.critical_upgrade false
+  set_prop_safe ro.lmk.upgrade_pressure 100
+  set_prop_safe ro.lmk.downgrade_pressure 100
+  set_prop_safe ro.lmk.kill_heaviest_task false
+  set_prop_safe ro.lmk.kill_timeout_ms 200
+  set_prop_safe ro.lmk.enhance_batch_kill false
+  set_prop_safe ro.lmk.enable_adaptive_lmk false
+  set_prop_safe ro.lmk.swap_compression_ratio 4
+  set_prop_safe ro.lmk.lowmem_min_oom_score 1001
+  set_prop_safe ro.lmk.direct_reclaim_threshold_ms 0
+  set_prop_safe persist.sys.preload.enable false
+  set_prop_safe persist.vendor.enable.preload false
+  set_prop_safe sys.gcsupression.optimize.enable false
+  set_prop_safe ro.lmk.limit_killing_array_kb 409600,358400,281600,204800
+  set_prop_safe sys.oplus.lmk.change_limit 1
+  set_prop_safe sys.sysctl.extra_free_kbytes 58898
+}
+
 main() {
   log "tune entry: MODDIR=$MODDIR"
+
+  if ! android_version_ok; then
+    sdk="$(getprop ro.build.version.sdk 2>/dev/null)"
+    log "android sdk=$sdk < 35, skip tuning"
+    return 0
+  fi
+
   if ! soc_is_snapdragon_8_elite; then
     log "unsupported soc, skip tuning"
     return 0
   fi
 
   log "snapdragon 8 elite profile start"
+  apply_render_memory_props
   apply_cpu_caps
   apply_gpu_caps
   apply_ddr_related

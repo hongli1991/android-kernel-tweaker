@@ -8,7 +8,6 @@ print_modname() {
   ui_print "*******************************"
   ui_print " Snapdragon 8 Elite Tweaker"
   ui_print " KernelSU / Magisk Module"
-  ui_print "我相信会再次看到蓝天 鲜花挂满枝头"
   ui_print "*******************************"
 }
 

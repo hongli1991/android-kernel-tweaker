@@ -1,6 +1,6 @@
 # Snapdragon 8 Elite KernelSU Tweaker
 
-一个专门面向 **Snapdragon 8 Elite (SM8750)** 的 KernelSU/Magisk 模块，目标是简洁、可维护、开机自动生效。
+面向 **Snapdragon 8 Elite (SM8750)** 的 KernelSU/Magisk 模块，目标是流畅与省电平衡。
 
 ## 调优目标
 
@@ -10,28 +10,25 @@
 - GPU
   - 限制在约 **900~1000 MHz**
 - DDR/DDRQOS/LLCC
-  - DDR: max=2092000, min=547000, boost=547000
-  - DDRQOS: max/min/boost=1
-  - LLCC: max=350000, min=350000, boost=350000
+  - DDR: min=547000, max=2092000, boost=547000
+  - DDRQOS: min/max/boost=1
+  - LLCC: min/max/boost=350000
 - CPUSET
   - background: 0-3
   - system-background: 2-4
-  - top-app/foreground/foreground_window/display/sf: 0-5
-  - 其余分组按常见 Android 调度组做保守分配（偏省电并兼顾流畅）
+  - top-app/foreground: 0-5
+  - 其他常见组（display/sf/camera/oiface等）做保守省电分配
 - WALT + schedutil
-  - 启用并设置一组面向高通平台的平衡参数（流畅度与持续功耗折中）
+  - 使用偏平衡参数，减少峰值功耗并维持响应速度
 
-## 文件结构
+## 新增功能
 
-- `service.sh`：开机完成后执行主调优脚本
-- `tune.sh`：核心调优逻辑
-- `scripts/lib.sh`：通用读写/频点选择/SOC 检测函数
-
-## 兼容与安全
-
-- 仅在检测到 Snapdragon 8 Elite 相关标识（如 `8 Elite` / `SM8750`）时生效。
-- 所有写入都通过“节点存在才写”的方式执行，避免在不同内核上硬写崩溃。
+- Android 版本检测：仅在 **Android 15+ (SDK>=35)** 执行调优。
+- Doze 自动控制：
+  - 息屏后立即尝试进入 **Light Doze**。
+  - 持续 5 分钟无唤醒后尝试进入 **Deep Doze**。
+- Vulkan/RenderEngine 参数与内存/LMK参数整合（通过 `resetprop`/`setprop` 尝试设置）。
 
 ## 日志
 
-- 日志路径：`/data/adb/ksu_tweaker/tune.log`
+- 主日志路径：`/data/adb/ksu_tweaker/tune.log`

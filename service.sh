@@ -17,6 +17,7 @@ fi
 
 LOG_DIR=/data/adb/ksu_tweaker
 LOG_FILE=$LOG_DIR/tune.log
+DOZE_PID_FILE=$LOG_DIR/doze_daemon.pid
 mkdir -p "$LOG_DIR" 2>/dev/null
 
 # wait boot completed (max 180s)
@@ -34,4 +35,16 @@ if [ -f "$MODDIR/tune.sh" ]; then
   sh "$MODDIR/tune.sh" >>"$LOG_FILE" 2>&1
 else
   echo "$(date '+%F %T' 2>/dev/null) [E] tune.sh not found under $MODDIR" >>"$LOG_FILE"
+fi
+
+if [ -f "$MODDIR/scripts/doze_daemon.sh" ]; then
+  running=0
+  if [ -f "$DOZE_PID_FILE" ]; then
+    read -r oldpid < "$DOZE_PID_FILE" 2>/dev/null
+    [ -n "$oldpid" ] && kill -0 "$oldpid" 2>/dev/null && running=1
+  fi
+  if [ "$running" -eq 0 ]; then
+    sh "$MODDIR/scripts/doze_daemon.sh" >>"$LOG_FILE" 2>&1 &
+    echo "$(date '+%F %T' 2>/dev/null) doze daemon started pid=$!" >>"$LOG_FILE"
+  fi
 fi
