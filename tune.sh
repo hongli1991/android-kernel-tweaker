@@ -209,14 +209,46 @@ lock_devfreq_node() {
   maxv="$3"
   boostv="$4"
 
-  # max first then min, then repeat max to avoid driver side rollback
-  write_if_exists "$node/max_freq" "$maxv"
-  write_if_exists "$node/min_freq" "$minv"
-  write_if_exists "$node/max_freq" "$maxv"
-  write_if_exists "$node/boost_freq" "$boostv"
+  # retry writes to resist vendor services that rewrite nodes post-boot
+  i=0
+  while [ "$i" -lt 3 ]; do
+    write_if_exists "$node/max_freq" "$maxv"
+    write_if_exists "$node/min_freq" "$minv"
+    write_if_exists "$node/max_freq" "$maxv"
+    write_if_exists "$node/boost_freq" "$boostv"
+    i=$((i + 1))
+  done
+}
+
+apply_bus_dcvs_explicit_locks() {
+  # DDR
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/boost_freq 547000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/max_freq 547000
+
+  # DDRQOS
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/boost_freq 1
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/soc:qcom,memlat:ddrqos:gold/min_freq 1
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/soc:qcom,memlat:ddrqos:gold/max_freq 1
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/soc:qcom,memlat:ddrqos:prime/min_freq 1
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/soc:qcom,memlat:ddrqos:prime/max_freq 1
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/soc:qcom,memlat:ddrqos:prime-latfloor/min_freq 1
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/soc:qcom,memlat:ddrqos:prime-latfloor/max_freq 1
+
+  # LLCC boost control
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/240b3400.qcom,bwmon-llcc-gold/use_sched_boost 1
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/240b3400.qcom,bwmon-llcc-gold/sched_boost_freq 350000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/240b7400.qcom,bwmon-llcc-prime/use_sched_boost 1
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/240b7400.qcom,bwmon-llcc-prime/sched_boost_freq 350000
+
+  # LLCC global/final caps
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/240b3400.qcom,bwmon-llcc-gold/max_freq 350000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/240b7400.qcom,bwmon-llcc-prime/max_freq 350000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/boost_freq 350000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/LLCC/max_freq 350000
 }
 
 apply_ddr_related() {
+  # 1) generic devfreq nodes
   for d in /sys/class/devfreq/*; do
     [ -d "$d" ] || continue
     n="$(basename "$d" | tr '[:upper:]' '[:lower:]')"
@@ -228,10 +260,13 @@ apply_ddr_related() {
         lock_devfreq_node "$d" "350000" "350000" "350000"
         ;;
       *ddr*|*cpubw*|*memlat*)
-        lock_devfreq_node "$d" "547000" "2092000" "547000"
+        lock_devfreq_node "$d" "547000" "547000" "547000"
         ;;
     esac
   done
+
+  # 2) Qualcomm bus_dcvs explicit nodes (higher priority on many ROMs)
+  apply_bus_dcvs_explicit_locks
 }
 
 apply_walt_sched() {
