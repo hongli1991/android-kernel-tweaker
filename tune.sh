@@ -223,7 +223,10 @@ lock_devfreq_node() {
 apply_bus_dcvs_explicit_locks() {
   # DDR
   write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/boost_freq 547000
-  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/max_freq 547000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/max_freq 2092000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/min_freq 547000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/hw_max_freq 2092000
+  write_if_exists /sys/devices/system/cpu/bus_dcvs/DDR/hw_min_freq 547000
 
   # DDRQOS
   write_if_exists /sys/devices/system/cpu/bus_dcvs/DDRQOS/boost_freq 1
