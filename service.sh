@@ -18,6 +18,7 @@ fi
 LOG_DIR=/data/adb/ksu_tweaker
 LOG_FILE=$LOG_DIR/tune.log
 DOZE_PID_FILE=$LOG_DIR/doze_daemon.pid
+CLEANER_PID_FILE=$LOG_DIR/log_cleaner.pid
 mkdir -p "$LOG_DIR" 2>/dev/null
 
 # wait boot completed (max 180s)
@@ -46,5 +47,18 @@ if [ -f "$MODDIR/scripts/doze_daemon.sh" ]; then
   if [ "$running" -eq 0 ]; then
     sh "$MODDIR/scripts/doze_daemon.sh" >>"$LOG_FILE" 2>&1 &
     echo "$(date '+%F %T' 2>/dev/null) doze daemon started pid=$!" >>"$LOG_FILE"
+  fi
+fi
+
+
+if [ -f "$MODDIR/scripts/log_cleaner.sh" ]; then
+  cleaner_running=0
+  if [ -f "$CLEANER_PID_FILE" ]; then
+    read -r cpid < "$CLEANER_PID_FILE" 2>/dev/null
+    [ -n "$cpid" ] && kill -0 "$cpid" 2>/dev/null && cleaner_running=1
+  fi
+  if [ "$cleaner_running" -eq 0 ]; then
+    sh "$MODDIR/scripts/log_cleaner.sh" >>"$LOG_FILE" 2>&1 &
+    echo "$(date '+%F %T' 2>/dev/null) log cleaner started pid=$!" >>"$LOG_FILE"
   fi
 fi

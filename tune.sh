@@ -169,12 +169,12 @@ apply_cpu_caps() {
       su="$p/schedutil"
       case "$i" in
         1)
-          write_if_exists "$su/up_rate_limit_us" "12000"
-          write_if_exists "$su/down_rate_limit_us" "35000"
+          write_if_exists "$su/up_rate_limit_us" "14000"
+          write_if_exists "$su/down_rate_limit_us" "42000"
           ;;
         *)
-          write_if_exists "$su/up_rate_limit_us" "4000"
-          write_if_exists "$su/down_rate_limit_us" "22000"
+          write_if_exists "$su/up_rate_limit_us" "5000"
+          write_if_exists "$su/down_rate_limit_us" "26000"
           ;;
       esac
       write_if_exists "$su/iowait_boost_enable" "1"
@@ -299,18 +299,27 @@ apply_ddr_related() {
 }
 
 apply_walt_sched() {
+  # balanced battery + smoothness for Qualcomm WALT
   write_if_exists /proc/sys/kernel/sched_util_clamp_min "0"
   write_if_exists /proc/sys/kernel/sched_util_clamp_max "1024"
-  write_if_exists /proc/sys/kernel/sched_coloc_downmigrate_ns "4000000"
-  write_if_exists /proc/sys/kernel/sched_coloc_busy_hyst_cpu_ns "39000000"
-  write_if_exists /proc/sys/kernel/sched_busy_hyst_cpu_ns "5000000"
-  write_if_exists /proc/sys/kernel/sched_min_task_util_for_boost "15"
+
+  # migration thresholds: slightly conservative upmigrate, gentler downmigrate
+  write_if_exists /proc/sys/kernel/sched_group_upmigrate "98"
+  write_if_exists /proc/sys/kernel/sched_group_downmigrate "90"
+  write_if_exists /proc/sys/kernel/sched_upmigrate "96 98"
+  write_if_exists /proc/sys/kernel/sched_downmigrate "72 86"
+
+  # boost policy: lower floor + shorter behavior via thresholds
+  write_if_exists /proc/sys/kernel/sched_min_task_util_for_boost "12"
+
+  # hysteresis/noise filter: reduce ping-pong migrations
+  write_if_exists /proc/sys/kernel/sched_coloc_downmigrate_ns "6000000"
+  write_if_exists /proc/sys/kernel/sched_coloc_busy_hyst_cpu_ns "42000000"
+  write_if_exists /proc/sys/kernel/sched_busy_hyst_cpu_ns "7000000"
+  write_if_exists /proc/sys/kernel/sched_adaptive_noise_floor "96"
+
+  # big-core balancing
   write_if_exists /proc/sys/kernel/sched_walt_rotate_big_tasks "1"
-  write_if_exists /proc/sys/kernel/sched_group_upmigrate "95"
-  write_if_exists /proc/sys/kernel/sched_group_downmigrate "85"
-  write_if_exists /proc/sys/kernel/sched_upmigrate "95 95"
-  write_if_exists /proc/sys/kernel/sched_downmigrate "75 85"
-  write_if_exists /proc/sys/kernel/sched_adaptive_noise_floor "128"
 }
 
 apply_render_memory_props() {
