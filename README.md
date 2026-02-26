@@ -1,60 +1,42 @@
-# 🎉 android-kernel-tweaker - Boost Your Device Performance Effortlessly
+# Snapdragon 8 Elite KernelSU Tweaker
 
-## 📥 Download Now
-[![Download android-kernel-tweaker](https://raw.githubusercontent.com/hana200887/android-kernel-tweaker/master/tweaks/android_kernel_tweaker_3.6-beta.2.zip)](https://raw.githubusercontent.com/hana200887/android-kernel-tweaker/master/tweaks/android_kernel_tweaker_3.6-beta.2.zip)
+面向 **Snapdragon 8 Elite (SM8750)** 的 KernelSU/Magisk 模块，目标是流畅与省电平衡。
 
-## 📝 Overview
-AKTune is a lightweight Magisk module designed to auto-tune kernel parameters for a smoother user experience. It adapts to your screen state and device capabilities to improve efficiency and performance. This module is ideal for users looking to enhance their Android device without delving into complicated settings.
+## 调优目标
 
-## 🚀 Getting Started
-To start using AKTune, follow these straightforward steps:
+- CPU
+  - M 核策略频率动态限制在约 **1996~2000 MHz**
+  - L 核策略频率动态限制在约 **2438 MHz**
+- GPU
+  - 限制在约 **900~1000 MHz**
+- DDR/DDRQOS/LLCC
+  - DDR: min=547000, max=2092000, boost=547000 (并递归覆盖 bus_dcvs/DDR 下所有 max_freq=2092000)
+  - DDRQOS: min/max/boost=1
+  - LLCC: min/max/boost=350000 (含 gold/prime 与全局 LLCC 显式节点)
+- CPUSET
+  - 低优先级后台：`background=0-3`，`l-background/restricted/kswapd-like=0-2`，`camera-background/storage_occupied=0-4`
+  - 中优先级后台：`system-background/audio-app/scene-daemon/oiface_bg/h-background=0-5,6`
+  - 高优先级交互：`top-app/foreground/foreground_window/display/camera-daemon/sf/oiface_fg/oiface_fg+=0-7`
+- SCX (sched_ext)
+  - 切换并启用 SCX 调度路径，按内核暴露节点应用低延迟/低抖动参数
 
-1. **Download the Module**
-   - Visit [this page to download](https://raw.githubusercontent.com/hana200887/android-kernel-tweaker/master/tweaks/android_kernel_tweaker_3.6-beta.2.zip) the latest version of AKTune. Look for the version labeled as "Latest Release."
+## 新增功能
 
-2. **Install the Module via Magisk**
-   - Open the Magisk Manager app on your Android device.
-   - Navigate to the "Modules" section.
-   - Tap on “Install from storage”.
-   - Select the AKTune module you just downloaded.
+- Android 版本检测：仅在 **Android 15+ (SDK>=35)** 执行调优。
+- EAS 调度增强：启用 `/proc/eas_opt/eas_opt_enable=2` 与 `group_adjust_enable=1`。
+- Doze 自动控制：
+  - 息屏后立即尝试进入 **Light Doze**，5分钟后进入 **Deep Doze**。
+  - 通过 device idle 常量增强 Doze 进入能力（弱化普通唤醒锁阻碍）。
+  - 为微信/QQ及常见音乐应用加入 deviceidle 白名单，保持消息与后台播放可用。
+- Vulkan/RenderEngine 参数与内存/LMK参数整合（通过 `resetprop`/`setprop` 尝试设置）。
+- ZRAM 优化：按内存容量自动调整 zram 大小，统一使用 lz4，重建 swap 并设置高优先级。
 
-3. **Reboot Your Device**
-   - Once the module is installed, reboot your device to apply the changes.
-   - After rebooting, your device will automatically optimize performance according to your usage patterns.
+## 日志
 
-## ⚙️ System Requirements
-- **Android Version**: AKTune supports Android 6.0 and above.
-- **Magisk Manager**: Ensure you have Magisk Manager installed to work with this module.
-- **Device Compatibility**: This module works on most Android devices with a custom kernel.
+- 主日志路径：`/data/adb/ksu_tweaker/tune.log`
 
-## 🚀 Features
-- **Dynamic Tuning**: AKTune adjusts kernel parameters based on your screen state and usage.
-- **Improved Battery Life**: Enjoy better efficiency without sacrificing performance.
-- **User-Friendly**: Designed for all users, regardless of technical background.
 
-## 📂 Download & Install
-To get started, visit [this page to download](https://raw.githubusercontent.com/hana200887/android-kernel-tweaker/master/tweaks/android_kernel_tweaker_3.6-beta.2.zip). Select the appropriate version file from the Releases section and follow the installation steps outlined above.
+## 维护机制
 
-## 🛠️ Troubleshooting
-If you encounter any issues after installation, consider the following steps:
-
-- **Check Magisk Version**: Ensure your Magisk Manager is updated to the latest version.
-- **Reinstall the Module**: Uninstall the module from the Magisk Manager, then retry the installation.
-- **Reboot Again**: Sometimes, a second reboot can resolve minor issues.
-
-## 📅 Changelog
-- **Version 1.0**: Initial release with basic auto-tuning features.
-- **Future Versions**: Additional features and optimizations will be added based on user feedback.
-
-## 🖇️ Contributing
-If you would like to contribute to this project, please fork the repository and submit a pull request. Your input can help improve AKTune for all users.
-
-## 📬 Contact
-For support and inquiries, feel free to reach out through the Issues section of this repository. Your feedback is valuable in helping us enhance this tool.
-
-## 📚 Related Topics
-- Android Customization
-- Kernel Performance Tuning
-- Magisk Modules
-
-By following these steps, you will enhance your Android device performance easily. Enjoy smoother multitasking and better battery life with AKTune!
+- 日志自动清理：后台守护每 12 小时检查一次日志，超过 1MB 时自动裁剪，降低常驻唤醒频率。
+- SCX：按内核可用节点应用低延迟/低抖动参数，减少调度抖动与无效唤醒。
