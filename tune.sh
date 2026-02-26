@@ -176,22 +176,10 @@ apply_cpu_caps() {
     fi
 
     if [ -n "$max_set" ]; then
-      write_if_exists "$p/scaling_governor" "schedutil"
+      # keep governor untouched (SCX mode), only cap frequencies
       write_if_exists "$p/scaling_min_freq" "$min_set"
       write_if_exists "$p/scaling_max_freq" "$max_set"
-      su="$p/schedutil"
-      case "$i" in
-        1)
-          write_if_exists "$su/up_rate_limit_us" "9000"
-          write_if_exists "$su/down_rate_limit_us" "36000"
-          ;;
-        *)
-          write_if_exists "$su/up_rate_limit_us" "3000"
-          write_if_exists "$su/down_rate_limit_us" "18000"
-          ;;
-      esac
-      write_if_exists "$su/iowait_boost_enable" "1"
-      log "cpu policy tuned: $p min=$min_set max=$max_set"
+      log "cpu policy capped: $p min=$min_set max=$max_set"
     fi
 
     i=$((i + 1))
@@ -311,28 +299,34 @@ apply_ddr_related() {
   sweep_ddr_max_freq_2092000
 }
 
-apply_walt_sched() {
-  # WALT tuning focused on smoothness-per-watt (avoid migration thrash)
-  write_if_exists /proc/sys/kernel/sched_util_clamp_min "0"
-  write_if_exists /proc/sys/kernel/sched_util_clamp_max "1024"
+apply_scx_tuning() {
+  # SCX (sched_ext) tuning path
+  # Kernel-dependent nodes; apply defensively.
 
-  # migration threshold balance
-  write_if_exists /proc/sys/kernel/sched_group_upmigrate "95"
-  write_if_exists /proc/sys/kernel/sched_group_downmigrate "85"
-  write_if_exists /proc/sys/kernel/sched_upmigrate "93 96"
-  write_if_exists /proc/sys/kernel/sched_downmigrate "70 82"
+  # enable sched_ext
+  write_if_exists /sys/kernel/sched_ext/enable 1
+  write_if_exists /proc/sys/kernel/sched_ext_enable 1
 
-  # boost trigger: smoothness without broad overboost
-  write_if_exists /proc/sys/kernel/sched_min_task_util_for_boost "10"
+  # try selecting built-in scheduler profile names if exposed
+  write_if_exists /sys/kernel/sched_ext/root/ops scx_lavd
+  write_if_exists /sys/kernel/sched_ext/ops scx_lavd
+  write_if_exists /sys/kernel/sched_ext/root/ops scx_bpfland
 
-  # anti-jitter / anti ping-pong
-  write_if_exists /proc/sys/kernel/sched_coloc_downmigrate_ns "5000000"
-  write_if_exists /proc/sys/kernel/sched_coloc_busy_hyst_cpu_ns "36000000"
-  write_if_exists /proc/sys/kernel/sched_busy_hyst_cpu_ns "6000000"
-  write_if_exists /proc/sys/kernel/sched_adaptive_noise_floor "128"
+  # common SCX knobs seen in different kernels
+  write_if_exists /sys/kernel/sched_ext/root/slice_us 4000
+  write_if_exists /sys/kernel/sched_ext/root/preempt_us 1200
+  write_if_exists /sys/kernel/sched_ext/root/idle_boost 0
+  write_if_exists /sys/kernel/sched_ext/root/wakeup_boost 1
+  write_if_exists /sys/kernel/sched_ext/root/latency_nice 0
 
-  # distribute big tasks across big cores
-  write_if_exists /proc/sys/kernel/sched_walt_rotate_big_tasks "1"
+  write_if_exists /sys/kernel/sched_ext/slice_us 4000
+  write_if_exists /sys/kernel/sched_ext/preempt_us 1200
+  write_if_exists /sys/kernel/sched_ext/wakeup_boost 1
+  write_if_exists /sys/kernel/sched_ext/idle_boost 0
+
+  # keep minimal WALT fallback only if SCX nodes are absent
+  write_if_exists /proc/sys/kernel/sched_walt_rotate_big_tasks 1
+  log "scx: tuning attempted"
 }
 
 
@@ -478,7 +472,7 @@ main() {
   apply_ddr_related
   apply_cpuset_tuning
   apply_eas_tuning
-  apply_walt_sched
+  apply_scx_tuning
   log "snapdragon 8 elite profile complete"
 }
 
