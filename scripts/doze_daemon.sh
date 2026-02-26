@@ -26,6 +26,7 @@ setup_doze_policy() {
   # keep critical IM/music alive
   for pkg in     com.tencent.mm     com.tencent.mobileqq     com.tencent.qqmusic     com.netease.cloudmusic     com.kugou.android     com.spotify.music; do
     cmd deviceidle whitelist +"$pkg" >/dev/null 2>&1
+    cmd deviceidle except-idle-whitelist +"$pkg" >/dev/null 2>&1
   done
 
   cmd deviceidle enable >/dev/null 2>&1

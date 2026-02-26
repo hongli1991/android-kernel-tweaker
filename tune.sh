@@ -138,6 +138,63 @@ soc_is_snapdragon_8_elite() {
   esac
 }
 
+
+set_scx_governor_policy() {
+  pol="$1"
+  gov_node="$pol/scaling_governor"
+  avail_node="$pol/scaling_available_governors"
+  [ -e "$gov_node" ] || return 0
+
+  avail="$(read_value "$avail_node")"
+  case " $avail " in
+    *" scx "*) write_if_exists "$gov_node" "scx" ;;
+    *" schedext "*) write_if_exists "$gov_node" "schedext" ;;
+    *) : ;;
+  esac
+}
+
+apply_scx_enable_paths() {
+  # hmbird path used by some mobile kernels
+  write_if_exists /proc/hmbird_sched/scx_enable 1
+
+  # prefer energy-oriented sched-ext governor if exposed
+  write_if_exists /proc/hmbird_sched/governor scx_p2dq
+  cur_scx_gov="$(read_value /proc/hmbird_sched/governor)"
+  case "$cur_scx_gov" in
+    *scx_p2dq*) : ;;
+    *) write_if_exists /proc/hmbird_sched/governor scx_layered ;;
+  esac
+
+  # optional knobs (write only when present)
+  write_if_exists /proc/hmbird_sched/enable_eas 1
+  write_if_exists /proc/hmbird_sched/small_task_threshold 128
+  write_if_exists /proc/hmbird_sched/large_task_threshold 900
+  write_if_exists /proc/hmbird_sched/mode MODE_EFFICIENCY
+
+  # generic sched_ext paths
+  write_if_exists /sys/kernel/sched_ext/enable 1
+  write_if_exists /proc/sys/kernel/sched_ext_enable 1
+  write_if_exists /sys/kernel/sched_ext/root/ops scx_p2dq
+  root_ops="$(read_value /sys/kernel/sched_ext/root/ops)"
+  case "$root_ops" in
+    *scx_p2dq*) : ;;
+    *) write_if_exists /sys/kernel/sched_ext/root/ops scx_layered ;;
+  esac
+
+  write_if_exists /sys/kernel/sched_ext/ops scx_p2dq
+  ops_now="$(read_value /sys/kernel/sched_ext/ops)"
+  case "$ops_now" in
+    *scx_p2dq*) : ;;
+    *) write_if_exists /sys/kernel/sched_ext/ops scx_layered ;;
+  esac
+
+  # optional common knobs
+  write_if_exists /sys/kernel/sched_ext/root/slice_us 5000
+  write_if_exists /sys/kernel/sched_ext/root/preempt_us 1500
+  write_if_exists /sys/kernel/sched_ext/root/wakeup_boost 0
+  write_if_exists /sys/kernel/sched_ext/root/idle_boost 0
+}
+
 apply_cpu_caps() {
   policies=""
   for p in /sys/devices/system/cpu/cpufreq/policy*; do
@@ -176,10 +233,10 @@ apply_cpu_caps() {
     fi
 
     if [ -n "$max_set" ]; then
-      # keep governor untouched (SCX mode), only cap frequencies
+      set_scx_governor_policy "$p"
       write_if_exists "$p/scaling_min_freq" "$min_set"
       write_if_exists "$p/scaling_max_freq" "$max_set"
-      log "cpu policy capped: $p min=$min_set max=$max_set"
+      log "cpu policy capped+scx: $p min=$min_set max=$max_set"
     fi
 
     i=$((i + 1))
@@ -300,33 +357,11 @@ apply_ddr_related() {
 }
 
 apply_scx_tuning() {
-  # SCX (sched_ext) tuning path
-  # Kernel-dependent nodes; apply defensively.
+  apply_scx_enable_paths
 
-  # enable sched_ext
-  write_if_exists /sys/kernel/sched_ext/enable 1
-  write_if_exists /proc/sys/kernel/sched_ext_enable 1
-
-  # try selecting built-in scheduler profile names if exposed
-  write_if_exists /sys/kernel/sched_ext/root/ops scx_lavd
-  write_if_exists /sys/kernel/sched_ext/ops scx_lavd
-  write_if_exists /sys/kernel/sched_ext/root/ops scx_bpfland
-
-  # common SCX knobs seen in different kernels
-  write_if_exists /sys/kernel/sched_ext/root/slice_us 4000
-  write_if_exists /sys/kernel/sched_ext/root/preempt_us 1200
-  write_if_exists /sys/kernel/sched_ext/root/idle_boost 0
-  write_if_exists /sys/kernel/sched_ext/root/wakeup_boost 1
-  write_if_exists /sys/kernel/sched_ext/root/latency_nice 0
-
-  write_if_exists /sys/kernel/sched_ext/slice_us 4000
-  write_if_exists /sys/kernel/sched_ext/preempt_us 1200
-  write_if_exists /sys/kernel/sched_ext/wakeup_boost 1
-  write_if_exists /sys/kernel/sched_ext/idle_boost 0
-
-  # keep minimal WALT fallback only if SCX nodes are absent
+  # fallback compatibility knob
   write_if_exists /proc/sys/kernel/sched_walt_rotate_big_tasks 1
-  log "scx: tuning attempted"
+  log "scx: hmbird+generic enable attempted"
 }
 
 

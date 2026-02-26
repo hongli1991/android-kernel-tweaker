@@ -18,7 +18,8 @@
   - 中优先级后台：`system-background/audio-app/scene-daemon/oiface_bg/h-background=0-5,6`
   - 高优先级交互：`top-app/foreground/foreground_window/display/camera-daemon/sf/oiface_fg/oiface_fg+=0-7`
 - SCX (sched_ext)
-  - 切换并启用 SCX 调度路径，按内核暴露节点应用低延迟/低抖动参数
+  - 优先通过 `policy*/scaling_governor` + `/proc/hmbird_sched/scx_enable=1` 启用
+  - 尝试 `scx_p2dq`（偏能效）并回退 `scx_layered`（可配置）
 
 ## 新增功能
 
@@ -27,7 +28,7 @@
 - Doze 自动控制：
   - 息屏后立即尝试进入 **Light Doze**，5分钟后进入 **Deep Doze**。
   - 通过 device idle 常量增强 Doze 进入能力（弱化普通唤醒锁阻碍）。
-  - 为微信/QQ及常见音乐应用加入 deviceidle 白名单，保持消息与后台播放可用。
+  - 为微信/QQ及常见音乐应用加入 whitelist + except-idle-whitelist，保持消息与后台播放可用。
 - Vulkan/RenderEngine 参数与内存/LMK参数整合（通过 `resetprop`/`setprop` 尝试设置）。
 - ZRAM 优化：按内存容量自动调整 zram 大小，统一使用 lz4，重建 swap 并设置高优先级。
 
