@@ -1,32 +1,64 @@
 #!/system/bin/sh
 
 MODDIR="${0%/*}"
-. "$MODDIR/common/util.sh"
+[ -n "$MODDIR" ] || MODDIR="."
 
-aktune_prepare_dirs
-rotate_logs_if_needed
-
-log_i "service: waiting for boot completion"
-wait_boot_completed 180
-akt_sleep 5
-
-PIDFILE="$STATE_DIR/daemon.pid"
-if [ -f "$PIDFILE" ]; then
-  pid="$(read_first_line "$PIDFILE" 2>/dev/null)"
-  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-    log_i "service: daemon already running pid=$pid"
-    exit 0
+if [ ! -d "$MODDIR" ]; then
+  if [ -d /data/adb/modules/sd8e_tweaker ]; then
+    MODDIR=/data/adb/modules/sd8e_tweaker
+  elif [ -d /data/adb/modules_update/sd8e_tweaker ]; then
+    MODDIR=/data/adb/modules_update/sd8e_tweaker
+  elif [ -d /data/adb/ksu/modules/sd8e_tweaker ]; then
+    MODDIR=/data/adb/ksu/modules/sd8e_tweaker
+  else
+    MODDIR=.
   fi
 fi
 
-log_i "service: starting adaptive daemon"
+LOG_DIR=/data/adb/ksu_tweaker
+LOG_FILE=$LOG_DIR/tune.log
+DOZE_PID_FILE=$LOG_DIR/doze_daemon.pid
+CLEANER_PID_FILE=$LOG_DIR/log_cleaner.pid
+mkdir -p "$LOG_DIR" 2>/dev/null
 
-if command -v nohup >/dev/null 2>&1; then
-  nohup sh "$MODDIR/tweaks/daemon.sh" >> "$LOG_FILE" 2>&1 &
+# wait boot completed (max 180s)
+i=0
+while [ "$i" -lt 180 ]
+do
+  if [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; then
+    break
+  fi
+  sleep 1
+  i=$((i + 1))
+done
+
+if [ -f "$MODDIR/tune.sh" ]; then
+  sh "$MODDIR/tune.sh" >>"$LOG_FILE" 2>&1
 else
-  sh "$MODDIR/tweaks/daemon.sh" >> "$LOG_FILE" 2>&1 &
+  echo "$(date '+%F %T' 2>/dev/null) [E] tune.sh not found under $MODDIR" >>"$LOG_FILE"
 fi
 
-printf "%s\n" "$!" > "$PIDFILE" 2>/dev/null
-log_i "service: daemon pid=$!"
-exit 0
+if [ -f "$MODDIR/scripts/doze_daemon.sh" ]; then
+  running=0
+  if [ -f "$DOZE_PID_FILE" ]; then
+    read -r oldpid < "$DOZE_PID_FILE" 2>/dev/null
+    [ -n "$oldpid" ] && kill -0 "$oldpid" 2>/dev/null && running=1
+  fi
+  if [ "$running" -eq 0 ]; then
+    sh "$MODDIR/scripts/doze_daemon.sh" >>"$LOG_FILE" 2>&1 &
+    echo "$(date '+%F %T' 2>/dev/null) doze daemon started pid=$!" >>"$LOG_FILE"
+  fi
+fi
+
+
+if [ -f "$MODDIR/scripts/log_cleaner.sh" ]; then
+  cleaner_running=0
+  if [ -f "$CLEANER_PID_FILE" ]; then
+    read -r cpid < "$CLEANER_PID_FILE" 2>/dev/null
+    [ -n "$cpid" ] && kill -0 "$cpid" 2>/dev/null && cleaner_running=1
+  fi
+  if [ "$cleaner_running" -eq 0 ]; then
+    sh "$MODDIR/scripts/log_cleaner.sh" >>"$LOG_FILE" 2>&1 &
+    echo "$(date '+%F %T' 2>/dev/null) log cleaner started pid=$!" >>"$LOG_FILE"
+  fi
+fi
